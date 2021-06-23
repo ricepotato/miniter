@@ -11,3 +11,13 @@
 ## tweet post
 
 `http -v POST localhost:5000/tweet id:=1 tweet="my tweet2"`
+
+
+## follow
+
+`http -v POST localhost:5000/follow id:=1 follow:=2`
+
+
+## unfollow
+
+`http -v POST localhost:5000/unfollow id:=1 follow:=2`

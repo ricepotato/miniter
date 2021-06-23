@@ -1,3 +1,6 @@
+import jwt
+import bcrypt
+import datetime
 from flask import Flask, jsonify, request
 from flask.json import JSONEncoder
 
@@ -11,6 +14,7 @@ class CustomJsonEncoder(JSONEncoder):
 
 
 app = Flask(__name__)
+app.config["JWT_SECRET_KEY"] = "5t0eob3vs3"
 app.users = {}
 app.tweets = []
 app.id_count = 1
@@ -26,10 +30,37 @@ def ping():
 def sign_up():
     new_user = request.json
     new_user["id"] = app.id_count
+    new_user["password"] = bcrypt.hashpw(
+        new_user["password"].encode("UTF-8"), bcrypt.gensalt()
+    ).decode("UTF-8")
     app.users[app.id_count] = new_user
     app.id_count = app.id_count + 1
 
     return jsonify(new_user)
+
+
+@app.route("/login", methods=["POST"])
+def login():
+    credential = request.json
+    email = credential["email"]
+    password = credential["password"]
+
+    try:
+        user = next(user for _, user in app.users.items() if user["email"] == email)
+        if bcrypt.checkpw(password.encode("UTF-8"), user["password"].encode("UTF-8")):
+            user_id = user["id"]
+            payload = {
+                "user_ud": user_id,
+                "exp": datetime.datetime.utcnow()
+                + datetime.timedelta(seconds=60 * 60 * 24),
+            }
+            token = jwt.encode(payload, app.config["JWT_SECRET_KEY"], "HS256")
+            return jsonify({"access_token": token})
+
+    except StopIteration:
+        pass
+
+    return "", 401
 
 
 @app.route("/tweet", methods=["POST"])
@@ -65,7 +96,7 @@ def follow():
     return jsonify(user)
 
 
-@app.route("/unfollow", method=["POST"])
+@app.route("/unfollow", methods=["POST"])
 def unfollow():
     payload = request.json
     user_id = int(payload["id"])
@@ -80,7 +111,7 @@ def unfollow():
     return jsonify(user)
 
 
-@app.route("/timeline/<int:user_id>", method=["POST"])
+@app.route("/timeline/<int:user_id>", methods=["POST"])
 def timeline(user_id):
     if user_id in app.users:
         return "user not found.", 400

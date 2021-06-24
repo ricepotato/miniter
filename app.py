@@ -1,7 +1,8 @@
 import jwt
+import functools
 import bcrypt
 import datetime
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, Response, g
 from flask.json import JSONEncoder
 
 
@@ -19,6 +20,38 @@ app.users = {}
 app.tweets = []
 app.id_count = 1
 app.json_encoder = CustomJsonEncoder
+
+
+def get_user_by_id(id):
+    try:
+        return app.users[id]
+    except KeyError:
+        return None
+
+
+def login_required(f):
+    @functools.wraps(f)
+    def decorated_function(*args, **kwargs):
+        access_token = request.headers.get("Authorization")
+        if access_token is not None:
+            try:
+                payload = jwt.decode(
+                    access_token, app.config["JWT_SECRET_KEY"], "HS256"
+                )
+            except jwt.InvalidTokenError:
+                payload = None
+
+            if payload is None:
+                return Response(status=401)
+            user_id = payload["user_id"]
+            g.user_id = user_id
+            g.user = get_user_by_id(user_id)
+        else:
+            return Response(status=401)
+
+        return f(*args, **kwargs)
+
+    return decorated_function
 
 
 @app.route("/ping", methods=["GET"])
@@ -50,9 +83,8 @@ def login():
         if bcrypt.checkpw(password.encode("UTF-8"), user["password"].encode("UTF-8")):
             user_id = user["id"]
             payload = {
-                "user_ud": user_id,
-                "exp": datetime.datetime.utcnow()
-                + datetime.timedelta(seconds=60 * 60 * 24),
+                "user_id": user_id,
+                "exp": datetime.datetime.utcnow() + datetime.timedelta(seconds=60),
             }
             token = jwt.encode(payload, app.config["JWT_SECRET_KEY"], "HS256")
             return jsonify({"access_token": token})
@@ -64,9 +96,10 @@ def login():
 
 
 @app.route("/tweet", methods=["POST"])
+@login_required
 def tweet():
     payload = request.json
-    user_id = int(payload["id"])
+    user_id = g.user_id
     tweet = payload["tweet"]
 
     if user_id not in app.users:
@@ -75,7 +108,7 @@ def tweet():
     if len(tweet) > 300:
         return "tweet too long", 400
 
-    user_id = int(payload["id"])
+    user_id = g.user_id
     app.tweets.append({"user_id": user_id, "tweet": tweet})
 
     return "", 200
@@ -111,7 +144,7 @@ def unfollow():
     return jsonify(user)
 
 
-@app.route("/timeline/<int:user_id>", methods=["POST"])
+@app.route("/timeline/<int:user_id>", methods=["GET"])
 def timeline(user_id):
     if user_id in app.users:
         return "user not found.", 400
@@ -121,3 +154,6 @@ def timeline(user_id):
     timeline = [tweet for tweet in app.tweet if tweet["user_id"]] in follow_list
 
     return jsonify({"user_id": user_id, "timeline": timeline})
+
+
+app.run(debug=True)

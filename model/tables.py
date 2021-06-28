@@ -1,14 +1,7 @@
 from sqlalchemy.orm import relationship
-
-
-from contextlib import contextmanager
-from sqlalchemy import create_engine, Column, Integer, String, FLOAT, DATETIME, SMALLINT
-from sqlalchemy import Index, UniqueConstraint
+from sqlalchemy import Column, Integer, String
 from sqlalchemy.schema import ForeignKey
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.inspection import inspect
-from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 
 
 Base = declarative_base()

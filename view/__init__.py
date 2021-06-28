@@ -1,7 +1,3 @@
-from flask import json
-from app import create_app
-import bcrypt
-import datetime
 import functools
 import jwt
 from flask import request, jsonify, current_app, Response, g
@@ -41,6 +37,7 @@ def login_required(f):
 
 
 def create_endpoints(app, services):
+    app.json_encoder = CustomJsonEncoder
     user_service = services.user_service
     tweet_service = services.tweet_service
 
@@ -52,20 +49,15 @@ def create_endpoints(app, services):
     def sign_up():
         new_user = request.json
         new_user_id = user_service.create_new_user(new_user)
-        new_user = user_service.get_user(new_user_id)
 
-        return jsonify(new_user)
+        return jsonify({"user_id": new_user_id})
 
     @app.route("/login", methods=["POST"])
     def login():
         credential = request.json
-        authorized = user_service.login(credential)
-
-        if authorized:
-            user_credential = user_service.get_user_id_and_password(credential["email"])
-            user_id = user_credential["id"]
+        user_id = user_service.login(credential)
+        if user_id:
             token = user_service.generate_access_token(user_id)
-
             return jsonify({"user_id": user_id, "access_token": token})
         else:
             return "", 401
@@ -107,11 +99,11 @@ def create_endpoints(app, services):
 
     @app.route("/timeline/<int:user_id>", methods=["GET"])
     def timeline(user_id):
-        timeline = tweet_service.get_timeline(user_id)
+        timeline = tweet_service.timeline(user_id)
         return jsonify({"user_id": user_id, "timeline": timeline})
 
     @app.route("/timeline", methods=["GET"])
     @login_required
     def user_timeline():
-        timeline = tweet_service.get_timeline(g.user_id)
+        timeline = tweet_service.timeline(g.user_id)
         return jsonify({"user_id": g.user_id, "timeline": timeline})

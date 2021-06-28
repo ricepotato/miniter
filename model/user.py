@@ -22,7 +22,7 @@ class UserDao:
         with self.db.session_scope() as s:
             try:
                 obj = s.query(User).filter(User.email == email).one()
-                return {"id": obj.id, "password": obj.password}
+                return {"id": obj.id, "hashed_password": obj.password}
             except NoResultFound:
                 return None
 
